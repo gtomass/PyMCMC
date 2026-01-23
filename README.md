@@ -19,8 +19,8 @@ PyMCMC-Phys is a Bayesian inference tool designed for scientific research. It fa
 ## Installation
 
 ```bash
-git clone [https://github.com/your-account/PyMCMC-Phys.git](https://github.com/your-account/PyMCMC-Phys.git)
-cd PyMCMC-Phys
+git clone https://github.com/gtomass/PyMCMC.git
+cd PyMCMC
 pip install -r requirements.txt
 ```
 
