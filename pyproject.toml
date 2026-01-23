@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyMCMC"
+version = "1.0.0"
+description = "A Python library for MCMC sampling and function fitting."
+authors = [
+    {name = "Gabriel Tomassini", email = "gabriel.tomassini@icloud.com"}
+]
+dependencies = [
+    "numpy>=2.3.0",
+    "matplotlib>=3.4.0",
+    "scipy>=1.10.0",
+    "tqdm>=4.60.0"
+]
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+dev = ["pytest>=6.0.0"]

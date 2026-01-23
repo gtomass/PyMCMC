@@ -1,0 +1,39 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# === Distribution / Packaging ===
+# Ignorer les dossiers générés lors de l'installation éditable
+build/
+dist/
+local_libs/
+*.egg-info/
+
+# === Environnements Virtuels ===
+venv/
+.venv/
+env/
+bin/
+lib/
+
+# === Tests & Couverture ===
+# Ignorer les caches générés par pytest
+.pytest_cache/
+.coverage
+htmlcov/
+tests/__pycache__/
+
+# === Données Spécifiques au Projet ===
+# Ignorer les fichiers de sauvegarde MCMC volumineux (chaînes et checkpoints)
+# Ces fichiers sont générés par Chain.save()
+*.npz
+
+# === OS spécifiques ===
+.DS_Store
+Thumbs.db
+
+# === Jupyter Notebooks ===
+# Ignorer les fichiers temporaires de sauvegarde des tutorials
+tutorials/.ipynb_checkpoints/
