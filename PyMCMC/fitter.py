@@ -1,8 +1,11 @@
 from __future__ import annotations
+from asyncio import threads
 import os
 import numpy as np
 from scipy import linalg, special
 from typing import Optional, List, Callable, Tuple, Union, Any
+
+from threadpoolctl import threadpool_limits
 
 from .sampler import Sampler
 from .chain import Chain
@@ -144,44 +147,47 @@ class FunctionFitter:
         checkpoint_every: int = 1000,
         resume: bool = False,
         thin: int = 1,
-        show_progress: bool = False
+        show_progress: bool = False,
+        threads_per_worker: int = 1
     ) -> Chain:
         """
         Execute the MCMC fit.
         """
-        start_step = 1
-        current_p = np.array(initial_params)
-        chain_obj = None
 
-        if resume and checkpoint_path and os.path.exists(checkpoint_path):
-            chain_obj = Chain.load(checkpoint_path)
-            # Adjust max_steps if necessary
-            chain_obj.max_steps = n_iterations
-            start_step = chain_obj.n_entries
-            current_p = chain_obj.get_map_estimate()
-            
-        proposal_cov = self._initialize_proposal_cov(current_p)
+        with threadpool_limits(limits=threads_per_worker, user_api='blas'): 
+            start_step = 1
+            current_p = np.array(initial_params)
+            chain_obj = None
 
-        sampler = Sampler(
-            log_lik_func=self.compute_log_likelihood,
-            initial_state=current_p,
-            proposal_covariance=proposal_cov,
-            log_prior_func=self.compute_log_prior,
-            max_steps=n_iterations,
-            method=method,
-            adapt_every=self.adapt_every,
-            thin=thin
-        )
+            if resume and checkpoint_path and os.path.exists(checkpoint_path):
+                chain_obj = Chain.load(checkpoint_path)
+                # Adjust max_steps if necessary
+                chain_obj.max_steps = n_iterations
+                start_step = chain_obj.n_entries
+                current_p = chain_obj.get_map_estimate()
+                
+            proposal_cov = self._initialize_proposal_cov(current_p)
 
-        if chain_obj:
-            sampler.chain = chain_obj
-            sampler.n_steps = start_step
+            sampler = Sampler(
+                log_lik_func=self.compute_log_likelihood,
+                initial_state=current_p,
+                proposal_covariance=proposal_cov,
+                log_prior_func=self.compute_log_prior,
+                max_steps=n_iterations,
+                method=method,
+                adapt_every=self.adapt_every,
+                thin=thin
+            )
 
-        return sampler.run(
-            checkpoint_path=checkpoint_path,
-            checkpoint_every=checkpoint_every,
-            show_progress=show_progress
-        )
+            if chain_obj:
+                sampler.chain = chain_obj
+                sampler.n_steps = start_step
+
+            return sampler.run(
+                checkpoint_path=checkpoint_path,
+                checkpoint_every=checkpoint_every,
+                show_progress=show_progress
+            )
 
     def fit_parallel(
         self,
@@ -189,7 +195,9 @@ class FunctionFitter:
         n_iterations: int = 10000,
         method: str = 'DRAM',
         num_workers: Optional[int] = None,
-        record_full_trace: bool = True
+        record_full_trace: bool = True,
+        show_progress: bool = False,
+        threads_per_worker: int = 1
     ) -> List[Chain]:
         """Run multiple chains in parallel."""
         return run_parallel_mcmc(
@@ -198,5 +206,7 @@ class FunctionFitter:
             max_steps=n_iterations,
             method=method,
             num_workers=num_workers,
-            record_full_trace=record_full_trace
+            record_full_trace=record_full_trace,
+            show_progress=show_progress,
+            threads_per_worker=threads_per_worker
         )

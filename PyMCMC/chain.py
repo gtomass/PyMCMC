@@ -219,3 +219,14 @@ class Chain:
         obj.best_ln_likelihood = float(data['best_ln_likelihood'])
         
         return obj
+    
+    def to_dict(self) -> dict:
+        """
+        Converts the sampled part of the chain into a dictionary for compatibility.
+        """
+        return {
+            'chain': self.samples[:self.n_entries],
+            'log_probs': self.ln_likelihoods[:self.n_entries],
+            'ndim': self.ndim,
+            'nsimu': self.n_entries
+        }

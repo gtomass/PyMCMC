@@ -46,3 +46,10 @@ def test_chain_resizing():
     c.add_state(np.array([3.0]), 0.0)
     assert c.current_capacity == 4
     assert c.n_entries == 3
+
+def test_to_dictionary():
+    c = Chain(ndim=2, max_steps=10)
+    c.add_state(np.array([1.0, 2.0]), -1.0)
+    d = c.to_dict()
+    assert d['ndim'] == 2
+    assert d['nsimu'] == 1

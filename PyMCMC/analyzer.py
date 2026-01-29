@@ -114,9 +114,14 @@ class MCMCAnalyzer:
 
         return np.sqrt(var_plus / w)
 
-    def compute_information_criteria(self) -> Dict[str, float]:
-        """Calculate AIC, BIC, and WAIC (if model data is available)."""
-
+    def compute_information_criteria(self, use_stored: bool = True) -> Dict[str, float]:
+        """
+        Calculate AIC, BIC, and WAIC efficiently.
+        
+        Args:
+            use_stored: If True, uses likelihoods already calculated during sampling 
+                        instead of re-running the model (crucial for slow models like Dusty).
+        """
         y_data = self.fitter.y_data if (self.fitter and hasattr(self.fitter, 'y_data')) else None
         n_data = len(y_data) if y_data is not None else None
         k = self.ndim
@@ -128,19 +133,24 @@ class MCMCAnalyzer:
         if n_data:
             results["BIC"] = k * np.log(n_data) - 2 * max_ln_lik
             
-            # WAIC Calculation (Pointwise approximation)
-            n_sub = min(1000, len(self.samples))
-            idx = np.random.choice(len(self.samples), n_sub, replace=False)
-            sub_samples = self.samples[idx]
+            # WAIC Calculation
+            # OPTIMIZATION: Use the likelihoods already stored in the chain!
+            if use_stored:
+                log_lik_vec = self.ln_likelihoods
+            else:
+                # Fallback to recomputing (slow)
+                n_sub = min(1000, len(self.samples))
+                idx = np.random.choice(len(self.samples), n_sub, replace=False)
+                sub_samples = self.samples[idx]
+                log_lik_vec = np.array([self.fitter.compute_log_likelihood(p) for p in sub_samples])
             
-            log_lik_vec = np.array([self.fitter.compute_log_likelihood(p) for p in sub_samples])
-            lppd = logsumexp(log_lik_vec) - np.log(n_sub)
+            lppd = logsumexp(log_lik_vec) - np.log(len(log_lik_vec))
             p_waic = np.var(log_lik_vec)
             results["WAIC"] = -2 * (lppd - p_waic)
 
         return results
 
-    def print_summary(self, param_names: Optional[List[str]] = None, cred_mass: float = 0.95) -> None:
+    def print_summary(self, param_names: Optional[List[str]] = None, cred_mass: float = 0.95, include_ic: bool = True) -> None:
         """Print a full statistical report of the posterior."""
         means = self.merged_chain.get_mean()
         stds = np.sqrt(np.diag(self.merged_chain.get_covariance()))
@@ -160,15 +170,35 @@ class MCMCAnalyzer:
         chi2_min = self.get_minimal_chi2()
         n_data = len(self.fitter.y_data) if self.fitter.y_data is not None else None
 
-        if n_data:
-            dof = n_data - self.ndim
-            print(f"\n Minimum reduced Chi2: {chi2_min/dof:.3f}")
-            ic = self.compute_information_criteria()
-            print(f" AIC: {ic['AIC']:.3f} | BIC: {ic['BIC']:.3f} | WAIC: {ic['WAIC']:.3f}")
-        else:
-            print(f"\n Minimum Chi2 (-2*lnL): {chi2_min:.3f}")
-            print(f" AIC: {2 * k + chi2_min:.3f}")
+        if include_ic:
+            chi2_min = self.get_minimal_chi2()
+            n_data = len(self.fitter.y_data) if self.fitter.y_data is not None else None
 
+            if n_data:
+                dof = n_data - self.ndim
+                print(f"\n Minimum reduced Chi2: {chi2_min/dof:.3f}")
+                ic = self.compute_information_criteria(use_stored=True) # Use optimization
+                print(f" AIC: {ic['AIC']:.3f} | BIC: {ic['BIC']:.3f} | WAIC: {ic['WAIC']:.3f}")
+            else:
+                print(f"\n Minimum Chi2 (-2*lnL): {chi2_min:.3f}")
+
+    def get_summary_stats(self, cred_mass: float = 0.95) -> Dict[str, np.ndarray]:
+        """
+        Calculates and returns a dictionary of summary statistics for the parameters.
+        """
+        # On utilise les méthodes de calcul déjà présentes dans votre classe Chain
+        means = self.merged_chain.get_mean()
+        stds = np.sqrt(np.diag(self.merged_chain.get_covariance()))
+        map_p = self.merged_chain.get_map_estimate()
+        hdi = self.merged_chain.compute_hdi(cred_mass=cred_mass)
+        
+        return {
+            'mean': means,
+            'std': stds,
+            'map': map_p,
+            'hdi': hdi
+        }
+    
     def get_minimal_chi2(self) -> float:
         """Recalculate pure Chi2 at MAP or return -2*max_lnL."""
         if self.fitter.model_func is None or self.fitter.y_data is None:

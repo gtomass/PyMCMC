@@ -17,7 +17,12 @@ class MCMCMethod:
         self.sampler = sampler
 
     def _calculate_log_alpha(self, log_pi_old: float, log_pi_new: float) -> float:
-        """Calculate ln(alpha) = min(0, log_pi_new - log_pi_old)."""
+        """Calculate ln(alpha) with protection against -inf."""
+        if np.isinf(log_pi_new) and log_pi_new < 0:
+            return -np.inf # Rejet immédiat si le nouveau est invalide
+        if np.isinf(log_pi_old) and log_pi_old < 0:
+            return 0.0 # Acceptation si l'ancien était invalide et le nouveau est "mieux" (ou moins pire)
+            
         return min(0.0, log_pi_new - log_pi_old)
 
     def _log_one_minus_exp(self, val: float) -> float:
@@ -195,13 +200,14 @@ class Sampler:
         record_full_trace: bool = True,
         checkpoint_path: Optional[str] = None,
         checkpoint_every: int = 1000,
-        show_progress: bool = False
+        show_progress: bool = False,
+        progress_queue: Optional[Any] = None # Ajout de la queue pour le parallélisme
     ) -> Chain:
         """Run the sampler for the allocated steps."""
         remaining_steps = max(0, self.max_steps - (self.n_steps - 1))
 
-        # Progress bar setup
-        use_tqdm = show_progress and tqdm is not None
+        # Progress bar setup (mode série)
+        use_tqdm = show_progress and tqdm is not None and progress_queue is None
         pbar = None
         if use_tqdm:
             pbar = tqdm(total=self.max_steps, initial=self.n_steps-1, desc="MCMC Sampling")
@@ -212,6 +218,10 @@ class Sampler:
             if pbar:
                 pbar.update(1)
             
+            # Envoi du signal de progression au processus principal
+            if progress_queue:
+                progress_queue.put(1)
+            
             # Periodic Checkpointing
             if checkpoint_path and (self.n_steps % checkpoint_every == 0):
                 self.chain.save(checkpoint_path)
@@ -219,7 +229,6 @@ class Sampler:
         if pbar:
             pbar.close()
 
-        # Final save if checkpointing is active
         if checkpoint_path:
             self.chain.save(checkpoint_path)
             
