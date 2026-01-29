@@ -3,6 +3,7 @@ numpy>=2.3.0
 matplotlib>=3.4.0
 scipy>=1.10.0
 tqdm>=4.60.0
+threadpollctl>=3.6.0
 
 # Development and Testing
 pytest>=6.0.0
